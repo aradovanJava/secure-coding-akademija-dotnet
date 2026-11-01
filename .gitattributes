@@ -1,0 +1,18 @@
+# Normalizacija završetaka redaka
+* text=auto
+
+*.sh   text eol=lf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+*.sln  text eol=crlf
+
+*.cs     text diff=csharp
+*.csproj text
+*.json   text
+*.md     text
+*.http   text
+
+*.png  binary
+*.jpg  binary
+*.ico  binary

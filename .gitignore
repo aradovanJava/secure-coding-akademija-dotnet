@@ -1,0 +1,39 @@
+# Build izlazi (.NET)
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+TestResults/
+*.trx
+artifacts/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# JetBrains Rider / IntelliJ
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+.idea/**/contentModel.xml
+*.sln.iml
+
+# Java (zajednički predložak s Java repozitorijem)
+target/
+
+# VS Code – lokalne postavke osim zajedničkih launch/tasks/settings/extensions
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logovi CI-ja i lokalnih pokretanja
+*.log
