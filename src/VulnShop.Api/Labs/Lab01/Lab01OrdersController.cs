@@ -6,9 +6,9 @@ namespace VulnShop.Api.Labs.Lab01;
 /// <summary>
 /// Lab01 – A01 Broken Access Control: IDOR (CWE-639).
 ///
-/// RANJIVO: narudžba se dohvaća samo po identifikatoru iz URL-a, bez provjere
-/// pripada li prijavljenom korisniku. Svaki prijavljeni korisnik može pročitati
-/// tuđu narudžbu (adresu dostave, stavke, iznos) jednostavnom promjenom broja u URL-u.
+/// ISPRAVLJENO: nakon dohvata narudžbe provjerava se vlasništvo. Korisnik koji nije vlasnik
+/// (i nije ADMIN) dobiva 404 – isto kao da narudžba ne postoji, kako se ne bi otkrivalo
+/// koji identifikatori postoje.
 /// </summary>
 [ApiController]
 [Route("api/lab01")]
@@ -18,15 +18,18 @@ public sealed class Lab01OrdersController(Db db) : ControllerBase
     [HttpGet("orders/{id:long}")]
     public IActionResult GetOrder(long id)
     {
+        var user = HttpContext.RequireCurrentUser();
         var rows = db.Query(
             "SELECT id, owner_username, items, shipping_address, total FROM lab01_orders WHERE id = $id",
             ("$id", id));
-        if (rows.Count == 0)
+
+        // ISPRAVLJENO: provjera vlasništva na poslužitelju (ADMIN smije sve).
+        // Tuđa narudžba → 404, jednako kao nepostojeća (ne otkrivamo postojanje).
+        if (rows.Count == 0 || (rows[0].GetString("owner_username") != user.Username && !user.IsAdmin))
         {
             return NotFound(new { error = "Narudžba nije pronađena." });
         }
 
-        // RANJIVO: nema provjere vlasništva – vraća se narudžba bilo kojeg korisnika.
         var order = rows[0];
         return Ok(new
         {

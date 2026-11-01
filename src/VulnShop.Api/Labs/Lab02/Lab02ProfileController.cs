@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using VulnShop.Api.Common;
 
@@ -6,38 +7,39 @@ namespace VulnShop.Api.Labs.Lab02;
 /// <summary>
 /// Lab02 – A01 Broken Access Control: mass assignment / eskalacija privilegija (CWE-915, CWE-269).
 ///
-/// RANJIVO: <c>PUT /api/lab02/profile</c> veže (binda) CIJELI entitet profila iz JSON-a,
-/// uključujući polje <c>role</c>, i zapisuje ga u bazu. Korisnik tako sam sebi može
-/// postaviti ulogu ADMIN i dobiti pristup administratorskom endpointu.
+/// ISPRAVLJENO: <c>PUT /api/lab02/profile</c> prima zaseban DTO (<see cref="ProfileUpdateRequest"/>)
+/// koji sadrži SAMO polja koja korisnik smije mijenjati (displayName, email), uz validaciju
+/// (DataAnnotations). Polje <c>role</c> iz JSON-a se ignorira – uloga se mijenja isključivo
+/// kroz administratorski proces.
 /// </summary>
 [ApiController]
 [Route("api/lab02")]
 [RequireAuth]
 public sealed class Lab02ProfileController(Db db) : ControllerBase
 {
-    /// <summary>RANJIVO: entitet profila koristi se izravno kao ulazni model (uključuje i Role).</summary>
-    public sealed class ProfileEntity
+    /// <summary>ISPRAVLJENO: ulazni DTO bez polja Role (allowlista dopuštenih polja).</summary>
+    public sealed class ProfileUpdateRequest
     {
+        [Required, StringLength(100, MinimumLength = 1)]
         public string? DisplayName { get; set; }
+
+        [Required, EmailAddress, StringLength(200)]
         public string? Email { get; set; }
-        public string? Role { get; set; }
     }
 
     [HttpGet("profile")]
     public IActionResult GetProfile() => Ok(LoadProfile(HttpContext.RequireCurrentUser().Id));
 
     [HttpPut("profile")]
-    public IActionResult UpdateProfile([FromBody] ProfileEntity profile)
+    public IActionResult UpdateProfile([FromBody] ProfileUpdateRequest request)
     {
+        // [ApiController] automatski vraća 400 ako validacija (DataAnnotations) ne prođe.
         var user = HttpContext.RequireCurrentUser();
 
-        // RANJIVO: role dolazi izravno iz JSON-a i zapisuje se bez provjere (mass assignment).
-        // Legitimni klijent ne šalje role (COALESCE zadržava postojeću vrijednost),
-        // ali napadač može poslati "role":"ADMIN" i eskalirati privilegije.
+        // ISPRAVLJENO: ažuriraju se samo dopuštena polja; stupac role se NE dira.
         db.Execute(
-            "UPDATE lab02_profiles SET display_name = COALESCE($d, display_name), email = COALESCE($e, email), " +
-            "role = COALESCE($r, role) WHERE user_id = $id",
-            ("$d", profile.DisplayName), ("$e", profile.Email), ("$r", profile.Role), ("$id", user.Id));
+            "UPDATE lab02_profiles SET display_name = $d, email = $e WHERE user_id = $id",
+            ("$d", request.DisplayName), ("$e", request.Email), ("$id", user.Id));
 
         return Ok(LoadProfile(user.Id));
     }
@@ -47,7 +49,6 @@ public sealed class Lab02ProfileController(Db db) : ControllerBase
     {
         var user = HttpContext.RequireCurrentUser();
 
-        // Ovlast se provjerava prema ulozi iz tablice profila (koju je napadač mogao promijeniti).
         var role = db.Scalar("SELECT role FROM lab02_profiles WHERE user_id = $id", ("$id", user.Id)) as string;
         if (role != "ADMIN")
         {

@@ -7,26 +7,34 @@ namespace VulnShop.Api.Labs.Lab05;
 /// <summary>
 /// Lab05 – A03 Software Supply Chain Failures (CWE-1104, CWE-1395).
 ///
-/// RANJIVO: projekt koristi zastarjeli paket <c>Newtonsoft.Json 12.0.3</c> s poznatom
-/// ranjivošću GHSA-5crp-9r3c-p9vr: bez ograničenja dubine (<c>MaxDepth</c>) duboko
-/// ugniježđen JSON (npr. 100 000 znakova <c>[</c>) izaziva <c>StackOverflowException</c>
-/// koji ruši CIJELI proces (DoS) – takva se iznimka u .NET-u ne može uhvatiti.
-/// Ispravljeno u 13.0.1 (zadani <c>MaxDepth = 64</c>).
-///
-/// Dodatno: tijelo zahtjeva se čita bez ograničenja veličine i bez hvatanja grešaka parsiranja.
+/// ISPRAVLJENO:
+///  - paket nadograđen na <c>Newtonsoft.Json 13.0.3</c> (VulnShop.Api.csproj),
+///  - eksplicitno ograničenje dubine (<c>MaxDepth = 32</c>) – ne oslanjamo se na zadane vrijednosti,
+///  - ograničena veličina tijela zahtjeva (<c>[RequestSizeLimit]</c>),
+///  - greška parsiranja (<c>JsonReaderException</c>) → 400 Bad Request.
 /// </summary>
 [ApiController]
 [Route("api/lab05")]
 public sealed class Lab05ImportController : ControllerBase
 {
+    private const int MaxDepth = 32;
+
     [HttpPost("import")]
+    [RequestSizeLimit(64 * 1024)] // 64 KB
     public async Task<IActionResult> Import()
     {
         using var reader = new StreamReader(Request.Body);
         var body = await reader.ReadToEndAsync();
 
-        // RANJIVO: zadane postavke ranjive verzije biblioteke (bez MaxDepth), bez try/catch.
-        var token = JsonConvert.DeserializeObject<JToken>(body);
+        JToken? token;
+        try
+        {
+            token = JsonConvert.DeserializeObject<JToken>(body, new JsonSerializerSettings { MaxDepth = MaxDepth });
+        }
+        catch (JsonReaderException)
+        {
+            return BadRequest(new { error = $"Neispravan JSON ili preduboka struktura (najviše {MaxDepth} razina)." });
+        }
 
         var (elements, depth) = JsonStats.Measure(token);
         return Ok(new { type = token?.Type.ToString(), elements, depth });

@@ -15,8 +15,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
-    <!-- NAMJERNO RANJIVA verzija (GHSA-5crp-9r3c-p9vr) – vježba Lab05; koristi se i u Lab13. -->
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <!-- ISPRAVLJENO (Lab05): nadogradnja s ranjive 12.0.3 (GHSA-5crp-9r3c-p9vr) na 13.0.3. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
 </Project>

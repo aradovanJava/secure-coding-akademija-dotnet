@@ -6,17 +6,23 @@ namespace VulnShop.Api.Labs.Lab10;
 /// <summary>
 /// Lab10 – A06 Insecure Design: poslovna logika (CWE-840, CWE-20).
 ///
-/// RANJIVO: poslužitelj vjeruje cijeni (<c>unitPrice</c>) i količini (<c>quantity</c>) iz
-/// zahtjeva (dopušta i negativne vrijednosti), primjenjuje SVAKI kupon iz liste (i isti više
-/// puta) te mijenja stanje novčanika bez ikakve provjere. Negativna količina tako POVEĆAVA
-/// stanje, a ponavljanjem kupona iznos se umjetno obara.
+/// ISPRAVLJENO (pravila poslovne logike provodi POSLUŽITELJ):
+///  - cijena se uzima iz baze (<c>lab10_products</c>), a <c>unitPrice</c> iz zahtjeva se ignorira,
+///  - količina 1..10, barem jedna stavka, poznati proizvodi,
+///  - najviše jedan kupon po narudžbi i jednokratna uporaba kupona po korisniku,
+///  - ukupni iznos mora biti &gt; 0 i pokriven stanjem novčanika,
+///  - terećenje, zapis o kuponu i provjere izvode se u jednoj transakciji.
 /// </summary>
 [ApiController]
 [Route("api/lab10")]
 [RequireAuth]
 public sealed class Lab10Controller(Db db) : ControllerBase
 {
-    public sealed record CheckoutItem(long ProductId, int Quantity, decimal UnitPrice);
+    private const string Coupon = "AKADEMIJA10";
+    private const decimal CouponFactor = 0.90m;
+
+    /// <summary>ISPRAVLJENO: klijent šalje samo proizvod i količinu (eventualni unitPrice se ignorira).</summary>
+    public sealed record CheckoutItem(long ProductId, int Quantity);
 
     public sealed record CheckoutRequest(List<CheckoutItem>? Items, List<string>? CouponCodes);
 
@@ -24,39 +30,75 @@ public sealed class Lab10Controller(Db db) : ControllerBase
     public IActionResult Wallet()
     {
         var user = HttpContext.RequireCurrentUser();
-        return Ok(new { username = user.Username, balance = GetBalance(user.Username) });
+        var balance = Money.Parse(db.Scalar("SELECT balance FROM lab10_wallets WHERE username = $u", ("$u", user.Username)));
+        return Ok(new { username = user.Username, balance });
     }
 
     [HttpPost("checkout")]
     public IActionResult Checkout([FromBody] CheckoutRequest request)
     {
         var user = HttpContext.RequireCurrentUser();
+        var items = request.Items ?? new List<CheckoutItem>();
+        var coupons = request.CouponCodes ?? new List<string>();
 
-        // RANJIVO: koriste se unitPrice i quantity iz zahtjeva (bez provjere predznaka i raspona).
-        var total = 0m;
-        foreach (var item in request.Items ?? new List<CheckoutItem>())
+        // ISPRAVLJENO: validacija ulaza prije bilo kakve promjene stanja.
+        if (items.Count is < 1 or > 20 || items.Any(i => i.Quantity is < 1 or > 10))
         {
-            total += item.UnitPrice * item.Quantity;
+            return BadRequest(new { error = "Narudžba mora imati 1–20 stavki, a količina mora biti 1–10." });
+        }
+        if (coupons.Count > 1)
+        {
+            return BadRequest(new { error = "Dopušten je najviše jedan kupon po narudžbi." });
+        }
+        if (coupons.Count == 1 && !string.Equals(coupons[0], Coupon, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = "Nepoznat kupon." });
         }
 
-        // RANJIVO: svaki kupon iz liste primjenjuje se zasebno (može i više puta isti).
-        foreach (var coupon in request.CouponCodes ?? new List<string>())
+        return db.Use<IActionResult>(conn =>
         {
-            if (string.Equals(coupon, "AKADEMIJA10", StringComparison.OrdinalIgnoreCase))
+            using var tx = conn.BeginTransaction();
+
+            // ISPRAVLJENO: cijene iz baze, ne iz zahtjeva.
+            var total = 0m;
+            foreach (var item in items)
             {
-                total *= 0.90m;
+                var product = Db.QueryIn(conn, tx, "SELECT price FROM lab10_products WHERE id = $id", ("$id", item.ProductId));
+                if (product.Count == 0)
+                {
+                    return BadRequest(new { error = "Nepoznat proizvod." });
+                }
+                total += product[0].GetDecimal("price") * item.Quantity;
             }
-        }
-        total = Math.Round(total, 2, MidpointRounding.AwayFromZero);
 
-        // RANJIVO: nema provjere total > 0 ni dostatnog stanja; negativan total povećava stanje.
-        var newBalance = GetBalance(user.Username) - total;
-        db.Execute("UPDATE lab10_wallets SET balance = $b WHERE username = $u",
-            ("$b", Money.ToDb(newBalance)), ("$u", user.Username));
+            if (coupons.Count == 1)
+            {
+                // ISPRAVLJENO: kupon se smije iskoristiti samo jednom po korisniku.
+                var used = Db.QueryIn(conn, tx,
+                    "SELECT 1 FROM lab10_coupon_usage WHERE username = $u AND coupon = $c",
+                    ("$u", user.Username), ("$c", Coupon));
+                if (used.Count > 0)
+                {
+                    return BadRequest(new { error = "Kupon je već iskorišten." });
+                }
+                Db.ExecuteIn(conn, tx, "INSERT INTO lab10_coupon_usage (username, coupon) VALUES ($u, $c)",
+                    ("$u", user.Username), ("$c", Coupon));
+                total *= CouponFactor;
+            }
+            total = Math.Round(total, 2, MidpointRounding.AwayFromZero);
 
-        return Ok(new { charged = total, balance = newBalance });
+            var balance = Db.QueryIn(conn, tx, "SELECT balance FROM lab10_wallets WHERE username = $u", ("$u", user.Username))[0]
+                .GetDecimal("balance");
+            if (total <= 0 || total > balance)
+            {
+                return BadRequest(new { error = "Iznos nije valjan ili stanje novčanika nije dostatno." });
+            }
+
+            var newBalance = balance - total;
+            Db.ExecuteIn(conn, tx, "UPDATE lab10_wallets SET balance = $b WHERE username = $u",
+                ("$b", Money.ToDb(newBalance)), ("$u", user.Username));
+            tx.Commit();
+            return Ok(new { charged = total, balance = newBalance });
+        });
     }
-
-    private decimal GetBalance(string username) =>
-        Money.Parse(db.Scalar("SELECT balance FROM lab10_wallets WHERE username = $u", ("$u", username)));
 }

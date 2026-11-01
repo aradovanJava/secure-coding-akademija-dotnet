@@ -6,17 +6,18 @@ namespace VulnShop.Api.Labs.Lab06;
 /// <summary>
 /// Lab06 – A04 Cryptographic Failures (CWE-916, CWE-327, CWE-321, CWE-329).
 ///
-/// Dio A: registracija i prijava kupaca (lozinke "hashirane" MD5-om – vidi <see cref="Lab06Passwords"/>)
-/// i javni "export" koji simulira procurjelu bazu (dump) – NAMJERNO bez autentikacije.
+/// Dio A: registracija i prijava kupaca i javni "export" koji simulira procurjelu bazu (dump) –
+/// NAMJERNO bez autentikacije. ISPRAVLJENO u <see cref="Lab06Passwords"/> (PBKDF2 + sol).
 ///
-/// Dio B: pohrana brojeva kartica šifriranih AES/ECB-om s hardkodiranim ključem
-/// (vidi <see cref="CardCrypto"/>).
+/// Dio B: pohrana brojeva kartica. ISPRAVLJENO u <see cref="CardCrypto"/> (AES-GCM, nasumični
+/// nonce, ključ iz konfiguracije).
 /// </summary>
 [ApiController]
 [Route("api/lab06")]
-public sealed class Lab06Controller(Db db) : ControllerBase
+public sealed class Lab06Controller(Db db, IConfiguration configuration) : ControllerBase
 {
-    private readonly CardCrypto _crypto = new();
+    // ISPRAVLJENO: ključ se čita iz konfiguracije (Lab06:EncryptionKey), ne iz izvornog koda.
+    private readonly CardCrypto _crypto = new(configuration);
 
     public sealed record Credentials(string? Username, string? Password);
 

@@ -7,12 +7,11 @@ namespace VulnShop.Api.Labs.Lab15;
 /// <summary>
 /// Lab15 – A10 Mishandling of Exceptional Conditions (CWE-636, CWE-755, CWE-209, CWE-460).
 ///
-/// RANJIVO:
-///  (1) FAIL-OPEN: iznimka iz <see cref="LimitService.Check"/> se hvata i ignorira, pa transfer
-///      s nepoznatom valutom (npr. XYZ) i iznosom iznad limita prolazi,
-///  (2) NEMA TRANSAKCIJE: terećenje se izvrši, a ako odobrenje (uplata na nepostojeći račun)
-///      ne uspije, novac nestaje,
-///  (3) poruka greške vraća naziv klase iznimke i detalje (SQL, interni podaci).
+/// ISPRAVLJENO:
+///  (1) FAIL-CLOSED: svaka iznimka iz sigurnosne provjere (<see cref="LimitService.Check"/>) znači ODBIJANJE,
+///  (2) validacija ulaza unaprijed (decimal, iznos &gt; 0, valuta s allowliste, različiti računi),
+///  (3) terećenje i odobrenje u JEDNOJ transakciji (<c>SqliteTransaction</c>) – sve ili ništa,
+///  (4) generičke poruke grešaka (ProblemDetails) s korelacijskim ID-om; detalji samo u logu.
 /// </summary>
 [ApiController]
 [Route("api/lab15")]
@@ -35,50 +34,77 @@ public sealed class Lab15Controller(Db db, LimitService limitService, ILogger<La
     public IActionResult Transfer([FromBody] TransferRequest request)
     {
         var user = HttpContext.RequireCurrentUser();
+
+        // (2) Validacija ulaza unaprijed.
+        if (string.IsNullOrWhiteSpace(request.FromAccount) || string.IsNullOrWhiteSpace(request.ToAccount) ||
+            request.FromAccount == request.ToAccount ||
+            !decimal.TryParse(request.Amount, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount) ||
+            amount <= 0 || decimal.Round(amount, 2) != amount ||
+            request.Currency is null || !LimitService.AllowedCurrencies.Contains(request.Currency))
+        {
+            return ProblemResult(StatusCodes.Status400BadRequest, "Neispravan zahtjev za transfer.");
+        }
+
+        // (1) FAIL-CLOSED: bilo kakva iznimka u sigurnosnoj provjeri = odbijanje.
         try
         {
-            var amount = decimal.Parse(request.Amount!, NumberStyles.Number, CultureInfo.InvariantCulture);
-
-            // RANJIVO (1) FAIL-OPEN: iznimka u sigurnosnoj provjeri se "proguta" i transfer se nastavlja.
-            try
-            {
-                limitService.Check(amount, request.Currency);
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug("Provjera limita nije uspjela, nastavljam svejedno: {Message}", ex.Message);
-            }
-
-            // Terećenje računa pošiljatelja (samo vlastiti račun).
-            var from = db.Query(
-                "SELECT balance FROM lab15_accounts WHERE account_no = $a AND owner_username = $o",
-                ("$a", request.FromAccount), ("$o", user.Username));
-            if (from.Count == 0)
-            {
-                return NotFound(new { error = "Račun za terećenje nije pronađen." });
-            }
-            db.Execute("UPDATE lab15_accounts SET balance = $b WHERE account_no = $a",
-                ("$b", Money.ToDb(from[0].GetDecimal("balance") - amount)), ("$a", request.FromAccount));
-
-            // RANJIVO (2): odobrenje je zasebna operacija, izvan transakcije s terećenjem.
-            var to = db.Query("SELECT balance FROM lab15_accounts WHERE account_no = $a", ("$a", request.ToAccount));
-            if (to.Count == 0)
-            {
-                // RANJIVO (2) + (3): terećenje se NE poništava, a poruka otkriva interne detalje (SQL, tablica).
-                throw new InvalidOperationException(
-                    "UPDATE lab15_accounts SET balance = balance + " + Money.ToDb(amount) +
-                    " WHERE account_no = '" + request.ToAccount + "' -> 0 redaka (odredišni račun ne postoji)");
-            }
-            db.Execute("UPDATE lab15_accounts SET balance = $b WHERE account_no = $a",
-                ("$b", Money.ToDb(to[0].GetDecimal("balance") + amount)), ("$a", request.ToAccount));
-
-            return Ok(new { status = "izvršeno", amount, currency = request.Currency });
+            limitService.Check(amount, request.Currency);
+        }
+        catch (LimitExceededException)
+        {
+            return ProblemResult(StatusCodes.Status422UnprocessableEntity, "Iznos premašuje dnevni limit.");
         }
         catch (Exception ex)
         {
-            // RANJIVO (3): vraća se puni naziv klase iznimke i detaljna poruka.
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                new { error = ex.GetType().FullName + ": " + ex.Message });
+            logger.LogWarning(ex, "Provjera limita nije uspjela – transfer odbijen (fail-closed).");
+            return ProblemResult(StatusCodes.Status400BadRequest, "Transfer nije dopušten.");
         }
+
+        try
+        {
+            // (3) Terećenje i odobrenje u jednoj transakciji.
+            return db.Use<IActionResult>(conn =>
+            {
+                using var tx = conn.BeginTransaction();
+
+                var from = Db.QueryIn(conn, tx,
+                    "SELECT balance FROM lab15_accounts WHERE account_no = $a AND owner_username = $o",
+                    ("$a", request.FromAccount), ("$o", user.Username));
+                var to = Db.QueryIn(conn, tx,
+                    "SELECT balance FROM lab15_accounts WHERE account_no = $a", ("$a", request.ToAccount));
+                if (from.Count == 0 || to.Count == 0)
+                {
+                    return ProblemResult(StatusCodes.Status404NotFound, "Račun nije pronađen.");
+                }
+
+                var fromBalance = from[0].GetDecimal("balance");
+                if (fromBalance < amount)
+                {
+                    return ProblemResult(StatusCodes.Status422UnprocessableEntity, "Nedovoljno sredstava.");
+                }
+
+                Db.ExecuteIn(conn, tx, "UPDATE lab15_accounts SET balance = $b WHERE account_no = $a",
+                    ("$b", Money.ToDb(fromBalance - amount)), ("$a", request.FromAccount));
+                Db.ExecuteIn(conn, tx, "UPDATE lab15_accounts SET balance = $b WHERE account_no = $a",
+                    ("$b", Money.ToDb(to[0].GetDecimal("balance") + amount)), ("$a", request.ToAccount));
+
+                tx.Commit(); // bez Commit() se transakcija pri Dispose() poništava (rollback)
+                return Ok(new { status = "izvršeno", amount, currency = request.Currency });
+            });
+        }
+        catch (Exception ex)
+        {
+            // (4) Detalji samo u logu; klijent dobiva generičku poruku i korelacijski ID.
+            logger.LogError(ex, "Transfer nije uspio, correlationId={CorrelationId}", HttpContext.TraceIdentifier);
+            return ProblemResult(StatusCodes.Status500InternalServerError, "Transfer trenutačno nije moguć.");
+        }
+    }
+
+    /// <summary>Generički ProblemDetails odgovor s korelacijskim ID-om (bez internih detalja).</summary>
+    private ObjectResult ProblemResult(int status, string title)
+    {
+        var problem = new ProblemDetails { Status = status, Title = title };
+        problem.Extensions["correlationId"] = HttpContext.TraceIdentifier;
+        return new ObjectResult(problem) { StatusCode = status };
     }
 }
