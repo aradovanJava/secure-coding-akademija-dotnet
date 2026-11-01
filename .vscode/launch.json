@@ -1,0 +1,37 @@
+{
+  // Pokretanje i debugiranje iz VS Codea (ekstenzija C# / C# Dev Kit).
+  // Run and Debug (Ctrl+Shift+D) → odaberite konfiguraciju → F5.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "VulnShop.Api (http://localhost:5080)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/VulnShop.Api/bin/Debug/net10.0/VulnShop.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/VulnShop.Api",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5080"
+      }
+    },
+    {
+      "name": "VulnShop.Api – Production način (Lab04)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/VulnShop.Api/bin/Debug/net10.0/VulnShop.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/VulnShop.Api",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "ASPNETCORE_URLS": "http://localhost:5080"
+      }
+    }
+  ]
+}

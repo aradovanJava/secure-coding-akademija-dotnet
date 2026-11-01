@@ -1,0 +1,50 @@
+### =====================================================================
+### Lab11 – A07 Authentication Failures: brute force i enumeracija (CWE-307, CWE-204)
+### Upute: docs/labs/lab11-brute-force.md
+### Automatizirani napad rječnikom izvodi se ISKLJUČIVO alatima Burp Suite Intruder ili
+### OWASP ZAP Fuzzer uz wordlists/top-100.txt (vidi upute). Ovdje su samo ručni pokušaji.
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Nepostojeći korisnik – ranjivo: 404 "Korisnik ne postoji."
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "nepostojeci", "password": "nesto"}
+
+### 2) Postojeći korisnik, kriva lozinka – ranjivo: 401 "Pogrešna lozinka." → ENUMERACIJA (ivana postoji)
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "ivana", "password": "nesto"}
+
+### 3) Ručni pokušaji čestih lozinaka (prve iz wordlists/top-100.txt)
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "ivana", "password": "123456"}
+
+###
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "ivana", "password": "password"}
+
+###
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "ivana", "password": "qwerty"}
+
+### 4) Pogođena lozinka (nalazi se u rječniku) – 200
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "ivana", "password": "sunshine1"}
+
+### 5) PROVJERA POPRAVKA: 1) i 2) vraćaju ISTI odgovor (401 "Neispravno korisničko ime ili lozinka.");
+###    nakon 5 neuspjelih pokušaja i točna lozinka vraća 429 (zaključavanje 15 min)
+POST {{host}}/api/lab11/login
+Content-Type: application/json
+
+{"username": "lockme", "password": "Lock!Me2026"}

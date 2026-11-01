@@ -1,0 +1,63 @@
+{
+  // Zadaci: Terminal → Run Task… (ili Ctrl+Shift+P → "Tasks: Run Task").
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/SecureCodingAkademija.sln", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "run (http://localhost:5080)",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/src/VulnShop.Api", "--launch-profile", "http"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "test: sve",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/SecureCodingAkademija.sln"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "test: funkcionalni",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/SecureCodingAkademija.sln", "--filter", "Category=Functional"],
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    },
+    {
+      "label": "test: sigurnosni",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/SecureCodingAkademija.sln", "--filter", "Category=Security"],
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    },
+    {
+      "label": "test: jedna vježba",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/SecureCodingAkademija.sln", "--filter", "Lab=${input:lab}"],
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "lab",
+      "type": "pickString",
+      "description": "Odaberite vježbu",
+      "options": ["Lab01", "Lab02", "Lab03", "Lab04", "Lab05", "Lab06", "Lab07", "Lab08", "Lab09", "Lab10", "Lab11", "Lab12", "Lab13", "Lab14", "Lab15"],
+      "default": "Lab01"
+    }
+  ]
+}

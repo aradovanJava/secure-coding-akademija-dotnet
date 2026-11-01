@@ -1,0 +1,32 @@
+### =====================================================================
+### Lab04 – A02 Security Misconfiguration (CWE-16, CWE-209, CWE-942, CWE-693)
+### Upute: docs/labs/lab04-misconfiguration.md
+### Za provjeru popravka pokrenite aplikaciju u produkcijskom načinu:
+###   dotnet run --project src/VulnShop.Api --launch-profile http-production
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Ping – pogledajte zaglavlja odgovora (ranjivo: nema X-Content-Type-Options, X-Frame-Options, CSP)
+GET {{host}}/api/lab04/ping
+
+### 2) NAPAD: debug endpoint otkriva cijelu konfiguraciju, uključujući Payment:ApiKey
+GET {{host}}/api/lab04/debug/config
+
+### 3) NAPAD: greška otkriva stack trace, nazive klasa i interne podatke (i u Productionu!)
+GET {{host}}/api/lab04/crash
+
+### 4) NAPAD: CORS preflight sa zlonamjernog origina – ranjivo: Access-Control-Allow-Origin: https://evil.example
+OPTIONS {{host}}/api/lab04/ping
+Origin: https://evil.example
+Access-Control-Request-Method: GET
+
+### 5) NAPAD: obični CORS zahtjev s vjerodajnicama
+GET {{host}}/api/lab04/ping
+Origin: https://evil.example
+
+### 6) Health check – mora raditi i nakon popravka
+GET {{host}}/health
+
+### 7) PROVJERA POPRAVKA (profil http-production): 2) → 404, 3) → 500 s generičkom porukom,
+###    4) → bez Access-Control-Allow-Origin, 1) → sigurnosna zaglavlja prisutna
+GET {{host}}/api/lab04/debug/config

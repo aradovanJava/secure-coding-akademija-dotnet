@@ -1,0 +1,59 @@
+### =====================================================================
+### Lab15 – A10 Mishandling of Exceptional Conditions (CWE-636, CWE-755, CWE-209, CWE-460)
+### Upute: docs/labs/lab15-exceptions.md
+### Računi: HR-ANA-001 (ana, 5000.00), HR-MARKO-001 (marko, 1000.00), HR-ADMIN-001 (admin, 10000.00)
+### Dnevni limit: 1000 EUR; dopuštene valute: EUR, USD
+### =====================================================================
+@host = http://localhost:5080
+@token = ZALIJEPITE_TOKEN_OVDJE
+
+### 1) Prijava kao ana (kopirajte "token" u @token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Anini računi i salda
+GET {{host}}/api/lab15/accounts
+Authorization: Bearer {{token}}
+
+### 3) Legitiman transfer 100 EUR
+POST {{host}}/api/lab15/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fromAccount": "HR-ANA-001", "toAccount": "HR-MARKO-001", "amount": "100.00", "currency": "EUR"}
+
+### 4) Iznad limita u EUR – ranjivo: PROLAZI (iznimka LimitExceededException se proguta)
+POST {{host}}/api/lab15/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fromAccount": "HR-ANA-001", "toAccount": "HR-MARKO-001", "amount": "2000.00", "currency": "EUR"}
+
+### 5) NAPAD (fail-open): nepoznata valuta XYZ i 50 000 – ranjivo: 200, saldo ide u minus
+POST {{host}}/api/lab15/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fromAccount": "HR-ANA-001", "toAccount": "HR-MARKO-001", "amount": "50000.00", "currency": "XYZ"}
+
+### 6) NAPAD (nema transakcije): nepostojeći odredišni račun – ranjivo: 500 s nazivom iznimke i SQL-om,
+###    a novac je SKINUT s Anina računa (provjerite korakom 2)
+POST {{host}}/api/lab15/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fromAccount": "HR-ANA-001", "toAccount": "HR-NEPOSTOJECI-999", "amount": "100.00", "currency": "EUR"}
+
+### 7) Neispravan iznos – ranjivo: 500 s "System.FormatException: ..."
+POST {{host}}/api/lab15/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fromAccount": "HR-ANA-001", "toAccount": "HR-MARKO-001", "amount": "sto eura", "currency": "EUR"}
+
+### 8) PROVJERA POPRAVKA: 4) → 422, 5) → 400, 6) → 404 (saldo nepromijenjen), 7) → 400;
+###    tijela grešaka su ProblemDetails s generičkom porukom i correlationId, bez naziva iznimki i SQL-a
+GET {{host}}/api/lab15/accounts
+Authorization: Bearer {{token}}

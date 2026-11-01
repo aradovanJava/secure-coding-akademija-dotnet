@@ -1,0 +1,55 @@
+### =====================================================================
+### Lab06 – A04 Cryptographic Failures (CWE-916, CWE-327, CWE-321, CWE-329)
+### Upute: docs/labs/lab06-crypto.md
+### =====================================================================
+@host = http://localhost:5080
+
+### ---------------- Dio A: lozinke ----------------
+
+### 1) "Procurjela" baza lozinki – pogledajte hasheve (ranjivo: 32 heks znaka = MD5; ivan i maja isti!)
+GET {{host}}/api/lab06/customers/export
+
+### 2) Registracija novog kupca
+POST {{host}}/api/lab06/register
+Content-Type: application/json
+
+{"username": "novi.kupac", "password": "123456"}
+
+### 3) Prijava točnom lozinkom – 200
+POST {{host}}/api/lab06/login
+Content-Type: application/json
+
+{"username": "novi.kupac", "password": "123456"}
+
+### 4) Prijava krivom lozinkom – 401
+POST {{host}}/api/lab06/login
+Content-Type: application/json
+
+{"username": "novi.kupac", "password": "kriva"}
+
+### 5) Ponovno export: novi.kupac ima ISTI hash kao ivan i maja (ranjivo) → razbijanje jednog = razbijanje svih
+GET {{host}}/api/lab06/customers/export
+
+### ---------------- Dio B: kartice ----------------
+
+### 6) Spremi karticu
+POST {{host}}/api/lab06/cards
+Content-Type: application/json
+
+{"cardNumber": "4111111111111111"}
+
+### 7) Spremi ISTI broj još jednom
+POST {{host}}/api/lab06/cards
+Content-Type: application/json
+
+{"cardNumber": "4111111111111111"}
+
+### 8) NAPAD: usporedite šifrate – ranjivo: identični (ECB, bez IV-a)
+GET {{host}}/api/lab06/cards
+
+### 9) Maskirani prikaz kartice (id iz koraka 6)
+GET {{host}}/api/lab06/cards/1/masked
+
+### 10) PROVJERA POPRAVKA: ponovite 1), 6), 7), 8) – hashevi u obliku pbkdf2-sha256$600000$...,
+###     različiti za istu lozinku; šifrati različiti i dulji (nonce + tag)
+GET {{host}}/api/lab06/customers/export

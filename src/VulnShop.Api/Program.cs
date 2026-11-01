@@ -12,12 +12,14 @@ using VulnShop.Api.Labs.Lab15;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Hrvatski znakovi (č ć đ š ž) u JSON odgovorima ostaju čitljivi; HTML-osjetljivi
+// znakovi (< > & ' ") i dalje se kodiraju.
+var jsonEncoder = JavaScriptEncoder.Create(
+    UnicodeRanges.BasicLatin, UnicodeRanges.Latin1Supplement, UnicodeRanges.LatinExtendedA);
 builder.Services
     .AddControllers()
-    // Hrvatski znakovi (č ć đ š ž) u JSON odgovorima ostaju čitljivi; HTML-osjetljivi
-    // znakovi (< > & ' ") i dalje se kodiraju.
-    .AddJsonOptions(options => options.JsonSerializerOptions.Encoder = JavaScriptEncoder.Create(
-        UnicodeRanges.BasicLatin, UnicodeRanges.Latin1Supplement, UnicodeRanges.LatinExtendedA));
+    .AddJsonOptions(options => options.JsonSerializerOptions.Encoder = jsonEncoder);
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Encoder = jsonEncoder);
 
 builder.Services.AddHealthChecks();
 builder.Services.AddMemoryCache();

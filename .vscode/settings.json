@@ -1,0 +1,6 @@
+{
+  "dotnet.defaultSolution": "SecureCodingAkademija.sln",
+  "files.encoding": "utf8",
+  "rest-client.previewOption": "full",
+  "rest-client.decodeEscapedUnicodeCharacters": true
+}

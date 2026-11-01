@@ -1,0 +1,29 @@
+### =====================================================================
+### Lab05 – A03 Software Supply Chain Failures (CWE-1104, CWE-1395)
+### Upute: docs/labs/lab05-supply-chain.md
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Legitiman uvoz JSON-a – vraća broj elemenata i dubinu
+POST {{host}}/api/lab05/import
+Content-Type: application/json
+
+{"proizvodi": [{"naziv": "Laptop"}, {"naziv": "Miš"}]}
+
+### 2) Neispravan JSON – ranjivo: 500 (neobrađena iznimka), nakon popravka: 400
+POST {{host}}/api/lab05/import
+Content-Type: application/json
+
+{"proizvodi": [
+
+### 3) JSON dubine 200 – ranjivo: 500, nakon popravka: 400
+### (cijeli payload u jednom retku: 200 × "[" pa 200 × "]")
+POST {{host}}/api/lab05/import
+Content-Type: application/json
+
+[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+
+### 4) DoS (OPREZ – SRUŠIT ĆE APLIKACIJU!): duboko ugniježđen JSON (100 000 × "[")
+###    ne stane u .http datoteku – pošaljite ga iz naredbenog retka (vidi upute, korak 4):
+###    PowerShell: $p = '[' * 100000; curl.exe -X POST http://localhost:5080/api/lab05/import -H "Content-Type: application/json" --data-raw $p
+###    bash:       python3 -c "print('['*100000)" | curl -X POST http://localhost:5080/api/lab05/import -H "Content-Type: application/json" --data-binary @-

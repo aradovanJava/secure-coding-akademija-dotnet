@@ -1,0 +1,37 @@
+### =====================================================================
+### Lab14 – A09 Security Logging & Alerting Failures (CWE-778, CWE-117, CWE-532)
+### Upute: docs/labs/lab14-logging.md
+### Nakon svakog zahtjeva pogledajte KONZOLU u kojoj radi aplikacija (dotnet run).
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Uspješna prijava – ranjivo: lozinka "Ana123!" ispisana u logu
+POST {{host}}/api/lab14/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Neuspjela prijava – ranjivo: lozinka u logu, a o neuspjehu NEMA zapisa
+POST {{host}}/api/lab14/login
+Content-Type: application/json
+
+{"username": "admin", "password": "pogadjam1"}
+
+### 3) NAPAD (log injection): \n u korisničkom imenu stvara krivotvoreni redak u logu
+POST {{host}}/api/lab14/login
+Content-Type: application/json
+
+{"username": "ana\n2026-11-02 10:00:00 INFO Login successful user=admin", "password": "x"}
+
+### 4) Pet neuspjelih prijava za istog korisnika (pošaljite 5 puta) – ranjivo: nikakvo upozorenje
+POST {{host}}/api/lab14/login
+Content-Type: application/json
+
+{"username": "admin", "password": "pogadjam"}
+
+### 5) PROVJERA POPRAVKA: u logu nema lozinki; 3) daje JEDAN redak s "ana_2026-11-02 ..."; neuspjesi
+###    daju "SECURITY_EVENT LOGIN_FAILED", a nakon 5 neuspjeha "SECURITY_ALERT BRUTE_FORCE_SUSPECTED"
+POST {{host}}/api/lab14/login
+Content-Type: application/json
+
+{"username": "admin", "password": "pogadjam"}

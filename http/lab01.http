@@ -1,0 +1,33 @@
+### =====================================================================
+### Lab01 – A01 Broken Access Control: IDOR (CWE-639)
+### Upute: docs/labs/lab01-idor.md
+### Aplikacija: dotnet run --project src/VulnShop.Api --launch-profile http
+### =====================================================================
+@host = http://localhost:5080
+# Nakon prijave kopirajte vrijednost "token" iz odgovora u varijablu ispod.
+@token = ZALIJEPITE_TOKEN_OVDJE
+
+### 1) Prijava kao ana (kopirajte "token" u @token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"username": "ana", "password": "Ana123!"}
+
+### 2) Ana čita SVOJU narudžbu 1001 – očekivano 200
+GET {{host}}/api/lab01/orders/1001
+Authorization: Bearer {{token}}
+
+### 3) NAPAD: ana čita Markovu narudžbu 1003 (ranjivo: 200 + Markova adresa)
+GET {{host}}/api/lab01/orders/1003
+Authorization: Bearer {{token}}
+
+### 4) NAPAD: ana čita administratorovu narudžbu 1004
+GET {{host}}/api/lab01/orders/1004
+Authorization: Bearer {{token}}
+
+### 5) PROVJERA POPRAVKA: zahtjevi 3) i 4) moraju vratiti 404 (ne 403 – ne otkrivamo postojanje)
+GET {{host}}/api/lab01/orders/1003
+Authorization: Bearer {{token}}
+
+### 6) Bez tokena – očekivano 401
+GET {{host}}/api/lab01/orders/1001
